@@ -16,54 +16,40 @@ jobs:
         uses: actions/checkout@v4 # Checks out your repository code into the runner environment.
 
       - name: Prepare Commit Details
-        id: prepare_commit # Assign an ID to this step to reference its outputs later
+        id: prepare_commit
         run: |
-          # Define file name and commit message prefix
           FILE_NAME="last-commit.txt"
           COMMIT_MESSAGE_PREFIX="chore: daily automated commit"
 
-          # Get current date and time in a human-readable format
           CURRENT_DATE_TIME=$(date '+%Y-%m-%d %H:%M:%S %Z')
-
-          # Generate the new content for the file
           NEW_CONTENT="Last commit: ${CURRENT_DATE_TIME}"
 
-          # Check if the file already exists and read its content
+          OLD_CONTENT=""
           if [ -f "${FILE_NAME}" ]; then
             OLD_CONTENT=$(cat "${FILE_NAME}")
-          else
-            OLD_CONTENT=""
           fi
 
-          # Compare old and new content
           if [ "$NEW_CONTENT" != "$OLD_CONTENT" ]; then
-            # If content is different, write new content to the file
             echo "${NEW_CONTENT}" > "${FILE_NAME}"
-            # Set output variables to indicate change and the commit message
             echo "change_made=true" >> "$GITHUB_OUTPUT"
             echo "commit_message=\"${COMMIT_MESSAGE_PREFIX} on $(date '+%Y-%m-%d')\"" >> "$GITHUB_OUTPUT"
             echo "::notice::File '${FILE_NAME}' will be updated."
           else
-            # If content is the same, no change needed
             echo "change_made=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No changes detected for '${FILE_NAME}'. Skipping commit."
           fi
 
       - name: Configure Git and Commit & Push changes
-        # Only run this step if changes were detected in the previous step
         if: steps.prepare_commit.outputs.change_made == 'true'
         run: |
-          # Set Git user name and email for the commit
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          # Stage the file
           git add last-commit.txt
 
-          # Commit the changes using the dynamic message from the previous step
           git commit -m "${{ steps.prepare_commit.outputs.commit_message }}"
 
-          # Push the changes. Uses the GITHUB_TOKEN which is automatically available.
-          # No need for PAT_TOKEN or x-access-token here.
-          git push
+          # Explicitly use GITHUB_TOKEN for push
+          # This should fix authentication issues if they occur with simple 'git push'
+          git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
           echo "::notice::Successfully committed and pushed changes."
