@@ -1,58 +1,60 @@
-name: Daily Commit
+name: Daily Log Commit
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Runs daily at midnight UTC
-  workflow_dispatch: # Allows manual triggering of the workflow
+    - cron: '0 18 * * *'  # Runs daily at midnight Bangladesh time (UTC+6)
+  workflow_dispatch:
 
 jobs:
-  commit:
+  daily-log:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # This permission is necessary to allow the GITHUB_TOKEN to push changes.
+      contents: write
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4 # Checks out your repository code into the runner environment.
+        uses: actions/checkout@v4
 
-      - name: Prepare Commit Details
-        id: prepare_commit
+      - name: Generate Daily Quote
+        id: quote
         run: |
-          FILE_NAME="last-commit.txt"
-          COMMIT_MESSAGE_PREFIX="chore: daily automated commit"
+          # Create a simple list of inspirational quotes or coding tips
+          QUOTES=(
+            "“First, solve the problem. Then, write the code.” – John Johnson"
+            "“Code is like humor. When you have to explain it, it’s bad.” – Cory House"
+            "“Make it work, make it right, make it fast.” – Kent Beck"
+            "“Programs must be written for people to read.” – Harold Abelson"
+            "“Experience is the name everyone gives to their mistakes.” – Oscar Wilde"
+            "“Simplicity is the soul of efficiency.” – Austin Freeman"
+            "“The best error message is the one that never shows up.” – Thomas Fuchs"
+          )
 
-          CURRENT_DATE_TIME=$(date '+%Y-%m-%d %H:%M:%S %Z')
-          NEW_CONTENT="Last commit: ${CURRENT_DATE_TIME}"
+          # Pick one randomly
+          RANDOM_INDEX=$((RANDOM % ${#QUOTES[@]}))
+          SELECTED_QUOTE=${QUOTES[$RANDOM_INDEX]}
 
-          OLD_CONTENT=""
-          if [ -f "${FILE_NAME}" ]; then
-            OLD_CONTENT=$(cat "${FILE_NAME}")
-          fi
+          echo "quote=${SELECTED_QUOTE}" >> "$GITHUB_OUTPUT"
 
-          if [ "$NEW_CONTENT" != "$OLD_CONTENT" ]; then
-            echo "${NEW_CONTENT}" > "${FILE_NAME}"
-            echo "change_made=true" >> "$GITHUB_OUTPUT"
-            echo "commit_message=\"${COMMIT_MESSAGE_PREFIX} on $(date '+%Y-%m-%d')\"" >> "$GITHUB_OUTPUT"
-            echo "::notice::File '${FILE_NAME}' will be updated."
-          else
-            echo "change_made=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No changes detected for '${FILE_NAME}'. Skipping commit."
-          fi
+      - name: Generate New Daily Log File
+        id: generate
+        run: |
+          TODAY=$(date '+%Y-%m-%d')
+          FILENAME="log-${TODAY}.txt"
 
-      - name: Configure Git and Commit & Push changes
-        if: steps.prepare_commit.outputs.change_made == 'true'
+          echo "🗓️ Daily log for ${TODAY}" > "${FILENAME}"
+          echo "" >> "${FILENAME}"
+          echo "💡 Quote of the Day:" >> "${FILENAME}"
+          echo "\"${{ steps.quote.outputs.quote }}\"" >> "${FILENAME}"
+
+          echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and Push
         env:
-          # Define the commit message as an environment variable
-          GIT_COMMIT_MESSAGE: ${{ steps.prepare_commit.outputs.commit_message }}
+          FILENAME: ${{ steps.generate.outputs.filename }}
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          git add last-commit.txt
-
-          # Use the environment variable for the commit message, properly quoted
-          git commit -m "$GIT_COMMIT_MESSAGE"
-
-          # Explicitly use GITHUB_TOKEN for push
-          git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
-          echo "::notice::Successfully committed and pushed changes."
+          git add "$FILENAME"
+          git commit -m "docs: add daily log with quote for ${FILENAME%.txt}"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
